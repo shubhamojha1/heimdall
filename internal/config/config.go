@@ -2,43 +2,145 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+	"time"
 )
 
-type Mode string
+type Layer string
 
 const (
-	ModeStatic  Mode = "static"
-	ModeDynamic Mode = "dynamic"
+	LayerFour  Layer = "l4"
+	LayerSeven Layer = "l7"
 )
 
 type Algorithm string
 
 const (
+	// L4 algorithms
 	AlgorithmRoundRobin         Algorithm = "round_robin"
-	AlgorithmStickyRoundRobin   Algorithm = "sticky_round_robin"
 	AlgorithmWeightedRoundRobin Algorithm = "weighted_round_robin"
-	AlgorithmIPHash             Algorithm = "ip_hash"
-	AlgorithmURLHash            Algorithm = "url_hash"
 	AlgorithmLeastConnections   Algorithm = "least_connections"
-	AlgorithmLeastTime          Algorithm = "least_time"
+	AlgorithmStickyRoundRobin   Algorithm = "sticky_round_robin"
+
+	// L7 algorithms
+	AlgorithmURLHash      Algorithm = "url_hash"
+	AlgorithmCookieBased  Algorithm = "cookie_based"
+	AlgorithmContentBased Algorithm = "content_based"
+
+	// Both layers
+	AlgorithmIPHash    Algorithm = "ip_hash"
+	AlgorithmLeastTime Algorithm = "least_time"
 )
 
+func (a Algorithm) IsValidForLayer(l Layer) bool {
+	switch l {
+	case LayerFour:
+		switch a {
+		case AlgorithmRoundRobin, AlgorithmWeightedRoundRobin, AlgorithmStickyRoundRobin, AlgorithmLeastConnections, AlgorithmIPHash, AlgorithmLeastTime:
+			return true
+		}
+
+	case LayerSeven:
+		switch a {
+		case AlgorithmURLHash, AlgorithmCookieBased, AlgorithmContentBased, AlgorithmIPHash, AlgorithmLeastTime:
+			return true
+		}
+	}
+	return false
+}
+
+type ServerMetrics struct {
+	// Connection metrics
+	ActiveConnections  int64   `json:"active_connections"`
+	TotalConnections   int64   `json:"total_connections"`
+	ConnectionRate     float64 `json:"connection_rate"` // connections per second
+	QueuedConnections  int64   `json:"queued_connections"`
+	DroppedConnections int64   `json:"dropped_connections"`
+
+	// Performance metrics
+	ResponseTime     time.Duration `json:"response_time"`      // average response time
+	LastResponseTime time.Duration `json:"last_response_time"` // last request response time
+	ProcessingTime   time.Duration `json:"processing_time"`    // time spent processing request
+	QueueTime        time.Duration `json:"queue_time"`         // time spent in queue
+
+	// Resource metrics
+	CPUUsage         float64 `json:"cpu_usage"`         // percentage
+	MemoryUsage      float64 `json:"memory_usage"`      // percentage
+	DiskIOUsage      float64 `json:"disk_io_usage"`     // IO operations per second
+	NetworkBandwidth float64 `json:"network_bandwidth"` // bytes per second
+
+	// Health metrics
+	LastHealthCheck   time.Time `json:"last_health_check"`
+	HealthCheckStatus bool      `json:"health_check_status"`
+	FailureCount      int       `json:"failure_count"`
+	SuccessCount      int       `json:"success_count"`
+
+	// Layer 7 specific metrics
+	RequestCount       int64 `json:"request_count,omitempty"`
+	SuccessfulRequests int64 `json:"successful_requests,omitempty"`
+	FailedRequests     int64 `json:"failed_requests,omitempty"`
+	Status5xx          int64 `json:"status_5xx,omitempty"`
+	Status4xx          int64 `json:"status_4xx,omitempty"`
+	BytesSent          int64 `json:"bytes_sent,omitempty"`
+	BytesReceived      int64 `json:"bytes_received,omitempty"`
+}
+
+type Backend struct {
+	Name   string `json:"name"`
+	URL    string `json:"url"`
+	Weight int    `json:"weight"`
+
+	// Connection limits
+	MaxConns          int           `json:"max_connections"`
+	MaxQueueSize      int           `json:"max_queue_size"`
+	QueueTimeout      time.Duration `json:"queue_timeout"`
+	ConnectionTimeout time.Duration `json:"connection_timeout"`
+
+	// Server capacity settings
+	MaxCPUUsage     float64       `json:"max_cpu_usage"`    // percentage threshold
+	MaxMemoryUsage  float64       `json:"max_memory_usage"` // percentage threshold
+	MaxResponseTime time.Duration `json:"max_response_time"`
+
+	// Current state
+	QueueFull       bool `json:"queue_full"`
+	Enabled         bool `json:"enabled"`
+	MaintenanceMode bool `json:"maintenance_mode"`
+
+	SSL struct {
+		Enabled  bool   `json:"enabled"`
+		Verify   bool   `json:"verify"`
+		CertPath string `json:"cert_path,omitempty"`
+		KeyPath  string `json:"key_path,omitempty"`
+	} `json:"ssl,omitempty"`
+
+	// Current metrics
+	Metrics ServerMetrics `json:"metrics"`
+}
+
+// Represents the main configuration structure
 type Config struct {
-	Mode      Mode      `json:"mode"`
+	Layer     Layer     `json:"layer"`
 	Algorithm Algorithm `json:"algorithm"`
 
 	Listen struct {
-		Port    int `json:"port"`
-		Address int `json:"address"`
+		Port    int    `json:"port"`
+		Address string `json:"address"`
 	} `json:"listen"`
 
 	Backends []Backend `json:"backends"`
 
+	L4Settings *L4Settings `json:"l4_settings,omitempty"`
+	L7Settings *L7Settings `json:"l7_settings,omitempty"`
+
 	HealthCheck struct {
+		Enabled  bool          `json:"enabled"`
+		Protocol string        `json:"protocol"` // "tcp" for L4, "http" for L7
 		Interval time.Duration `json:"interval"`
 		Timeout  time.Duration `json:"timeout"`
 		Path     string        `json:"path"`
+		Port     int           `json:"port"`
+		Expected int           `json:"expected_status, omitempty"`
 	} `json:"healthcheck"`
 
 	Metrics struct {
@@ -47,12 +149,72 @@ type Config struct {
 	} `json:"metrics"`
 }
 
-type Backend struct {
-	Name     string `json:"name"`
-	URL      string `json:"url"`
-	Weight   int    `json:"weight"`
-	MaxConns int    `json:"maxConns"`
-	// also add queue full boolean
+type L4Settings struct {
+	TCP struct {
+		KeepAlive      bool          `json:"keepalive"`
+		KeepAliveTime  time.Duration `json:"keepalive_time"`
+		MaxConnections int           `json:"max_connections"`
+	} `json:"tcp"`
+}
+
+type L7Settings struct {
+	HTTP struct {
+		MaxHeaderSize   int               `json:"max_header_size"`
+		IdleTimeout     time.Duration     `json:"idle_timeout"`
+		WriteTimeout    time.Duration     `json:"write_timeout"`
+		EnableHTTPS     bool              `json:"enable_https"`
+		SSLCertPath     string            `json:"ssl_cert_path,omitempty"`
+		SSLKeyPath      string            `json:"ssl_key_path,omitempty"`
+		RequestHeaders  map[string]string `json:"request_headers"`
+		ResponseHeaders map[string]string `json:"response_headers"`
+	} `json:"http"`
+
+	Sticky struct {
+		Enabled    bool   `json:"enabled"`
+		CookieName string `json:"cookie_name,omitempty"`
+		HashMethod string `json:"hash_method,omitempty"`
+		HashKey    string `json:"hash_key,omitempty"`
+	} `json:"sticky"`
+
+	// Monitoring and metrics configuration
+	Monitoring struct {
+		Enabled          bool          `json:"enabled"`
+		UpdateInterval   time.Duration `json:"update_interval"`
+		MetricsRetention time.Duration `json:"metrics_retention"`
+
+		// Thresholds for automatic backend disabling
+		Thresholds struct {
+			MaxResponseTime time.Duration `json:"max_response_time"`
+			MaxFailureRate  float64       `json:"max_failure_rate"`
+			MaxCPUUsage     float64       `json:"max_cpu_usage"`
+			MaxMemoryUsage  float64       `json:"max_memory_usage"`
+			MaxQueueLength  int           `json:"max_queue_length"`
+		} `json:"thresholds"`
+
+		// Alerting configuration
+		Alerts struct {
+			Enabled     bool     `json:"enabled"`
+			Endpoints   []string `json:"endpoints"`
+			MinSeverity string   `json:"min_severity"`
+		} `json:"alerts"`
+
+		// Metrics export
+		Export struct {
+			Prometheus bool   `json:"prometheus"`
+			Port       int    `json:"port"`
+			Path       string `json:"path"`
+		} `json:"export"`
+	} `json:"monitoring"`
+
+	// Dynamic reconfiguration settings
+	DynamicConfig struct {
+		Enabled            bool          `json:"enabled"`
+		UpdateInterval     time.Duration `json:"update_interval"`
+		MinBackends        int           `json:"min_backends"`
+		MaxBackends        int           `json:"max_backends"`
+		ScaleUpThreshold   float64       `json:"scale_up_threshold"`
+		ScaleDownThreshold float64       `json:"scale_down_threshold"`
+	} `json:"dynamic_config"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -67,5 +229,43 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 
+	if !config.Algorithm.IsValidForLayer(config.Layer) {
+		return nil, fmt.Errorf("algorithm %s is not valid for layer %s", config.Algorithm, config.Layer)
+	}
+
 	return &config, nil
+}
+
+// MetricsStore interface for different metrics storage implementations
+type MetricsStore interface {
+	StoreMetrics(serverName string, metrics ServerMetrics) error
+	GetMetrics(serverName string) (ServerMetrics, error)
+	GetHistoricalMetrics(serverName string, duration time.Duration) ([]ServerMetrics, error)
+}
+
+// LoadBalancerMetrics represents global load balancer metrics
+type LoadBalancerMetrics struct {
+	TotalRequests       int64         `json:"total_requests"`
+	ActiveConnections   int64         `json:"active_connections"`
+	RequestsPerSecond   float64       `json:"requests_per_second"`
+	AverageResponseTime time.Duration `json:"average_response_time"`
+	ErrorRate           float64       `json:"error_rate"`
+	BackendsAvailable   int           `json:"backends_available"`
+	BackendsTotal       int           `json:"backends_total"`
+	LastUpdated         time.Time     `json:"last_updated"`
+}
+
+func (b *Backend) IsHealthy() bool {
+	return b.Enabled &&
+		!b.MaintenanceMode &&
+		b.Metrics.HealthCheckStatus &&
+		b.Metrics.ActiveConnections < int64(b.MaxConns) &&
+		b.Metrics.CPUUsage < b.MaxCPUUsage &&
+		b.Metrics.MemoryUsage < b.MaxMemoryUsage &&
+		b.Metrics.ResponseTime < b.MaxResponseTime
+}
+
+func (b *Backend) UpdateMetrics(metrics ServerMetrics) {
+	b.Metrics = metrics
+	b.QueueFull = b.Metrics.QueuedConnections >= int64(b.MaxQueueSize)
 }
