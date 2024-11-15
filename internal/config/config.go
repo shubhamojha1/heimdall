@@ -140,7 +140,7 @@ type Config struct {
 		Timeout  time.Duration `json:"timeout"`
 		Path     string        `json:"path"`
 		Port     int           `json:"port"`
-		Expected int           `json:"expected_status, omitempty"`
+		Expected int           `json:"expected_status,omitempty"`
 	} `json:"healthcheck"`
 
 	Metrics struct {
