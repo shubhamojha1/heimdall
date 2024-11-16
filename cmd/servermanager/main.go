@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -21,6 +22,7 @@ type ServerInfo struct {
 	Status     string    `json:"status"`
 	StartedAt  time.Time `json:"started_at"`
 	ConfigInfo config.Config
+	server     *http.Server `json:"-"`
 }
 
 type ServerManager struct {
@@ -72,6 +74,9 @@ func (sm *ServerManager) AddServer() (*ServerInfo, error) {
 		URL:       fmt.Sprintf("http://localhost:%d", port),
 		Status:    "starting",
 		StartedAt: time.Now(),
+		server: &http.Server{
+			Addr: fmt.Sprintf(":%d", port),
+		},
 	}
 
 	// start a server as a goroutine
@@ -87,21 +92,53 @@ func (sm *ServerManager) AddServer() (*ServerInfo, error) {
 		// add other info as well from config file
 		sm.mutex.Unlock()
 
-		server := &http.Server{
+		NewServer := &http.Server{
 			Addr:    fmt.Sprintf(":%d", port),
 			Handler: mux,
 		}
 
-		if err := server.ListenAndServe(); err != http.ErrServerClosed {
+		if err := NewServer.ListenAndServe(); err != http.ErrServerClosed {
 			sm.mutex.Lock()
 			ServerInfo.Status = "error"
 			sm.mutex.Unlock()
 		}
+		ServerInfo.server = NewServer
 	}()
 
 	// wait for server to start
 	time.Sleep(100 * time.Millisecond)
 	return ServerInfo, nil
+}
+
+func (sm *ServerManager) RemoveServer(port int) error {
+	sm.mutex.Lock()
+	serverInfo, exists := sm.servers[port]
+	if !exists {
+		sm.mutex.Unlock()
+		return fmt.Errorf("server on port %d not found", port)
+	}
+
+	// Update status before releasing lock
+	serverInfo.Status = "shutting_down"
+	sm.mutex.Unlock()
+
+	// Create a context with timeout for shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Gracefully shutdown the server
+	if err := serverInfo.server.Shutdown(ctx); err != nil {
+		// If graceful shutdown fails, force close
+		serverInfo.server.Close()
+		return fmt.Errorf("error shutting down server on port %d: %v", port, err)
+	}
+
+	// Remove from map after successful shutdown
+	sm.mutex.Lock()
+	delete(sm.servers, port)
+	sm.mutex.Unlock()
+
+	return nil
 }
 
 func (sm *ServerManager) handleAddServer(w http.ResponseWriter, r *http.Request) {
@@ -119,7 +156,30 @@ func (sm *ServerManager) handleAddServer(w http.ResponseWriter, r *http.Request)
 	json.NewEncoder(w).Encode(server)
 }
 
+func (sm *ServerManager) handleRemoveServer(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	portStr := r.URL.Query().Get("port")
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		http.Error(w, "Invalid port number", http.StatusBadRequest)
+		return
+	}
+
+	if err := sm.RemoveServer(port); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "Server on port %d removed", port)
+}
+
 func main() {
+	// add logs everywhere
 	managerPort := os.Getenv("MANAGER_PORT")
 	if managerPort == "" {
 		managerPort = "7000"
@@ -136,7 +196,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/servers/add", manager.handleAddServer)
-	// mux.HandleFunc("/servers/remove", manager.handleRemoveServer)
+	mux.HandleFunc("/servers/remove", manager.handleRemoveServer)
 	// mux.HandleFunc("/servers/list", manager.handleListServers)
 	// mux.HandleFunc("/servers/get", manager.handleGetServer)
 
