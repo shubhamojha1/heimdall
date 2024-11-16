@@ -1,9 +1,30 @@
 {
-    "mode": "static",
-    "static": {
-        
+    "layer": "l7",
+    "algorithm": "url_hash",
+    "listen": {
+        "port":8080,
+        "address": "0.0.0.0"
     },
-    "dynamic": {
-
-    }
+    "l7_settings": {
+        "http": {
+            "max_header_size": 32768,
+            "idle_timeout": 60,
+            "enable_https": true,
+            "ssl_cert_path": "/etc/certs/server.crt",
+            "ssl_key_path": "/etc/certs/server.key"
+        },
+        "sticky": {
+            "enabled": true,
+            "hash_method": "url"
+        }
+    },
+    "backends": [
+        {
+            "name": "backend1",
+            "url": "http://localhost:8080",
+            "weight": 5,
+            "max_connections": 1000,
+            "queue_full": false
+        }
+    ]
 }

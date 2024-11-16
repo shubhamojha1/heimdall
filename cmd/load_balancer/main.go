@@ -3,16 +3,14 @@ package main
 import (
 	"log"
 	"os"
-	"path/filepath"
-
-	"github.com/shubhamojha1/heimdall/internal/config"
 
 	"github.com/joho/godotenv"
+	"github.com/shubhamojha1/heimdall/internal/config"
 )
 
 // refer to server metrics needed by the lb. important
 func main() {
-	err := godotenv.Load(filepath.Join("../..", ".env"))
+	err := godotenv.Load()
 	if err != nil {
 		log.Fatalf("Error loading .env file")
 	}
@@ -22,7 +20,7 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 	logger := log.New(os.Stdout, "[LoadBalancer]", log.LstdFlags|log.Lshortfile)
-	// fmt.Printf(string(cfg.Algorithm.AlgorithmRoundRobin))
+
 	// lb, err := lb.NewLoadBalancer(cfg, logger)
 	// if err != nil {
 	// 	log.Fatalf("Failed to create load balancer: %v", err)
