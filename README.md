@@ -1,4 +1,7 @@
 # heimdall
+## A Dynamic Load Balancer
+
+```
 ├── cmd/
 │   └── load_balancer/
 │       └── main.go                # Entry point of the application
@@ -35,3 +38,4 @@
 ├── config.json                     # Configuration file for load balancer
 ├── go.mod                          # Go module file
 └── README.md                       # Project documentation
+```
