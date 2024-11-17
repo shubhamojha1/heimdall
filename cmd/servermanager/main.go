@@ -141,6 +141,18 @@ func (sm *ServerManager) RemoveServer(port int) error {
 	return nil
 }
 
+func (sm *ServerManager) ListServers() []*ServerInfo {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	servers := make([]*ServerInfo, 0, len(sm.servers))
+	for _, server := range sm.servers {
+		servers = append(servers, server)
+	}
+	return servers
+
+}
+
 func (sm *ServerManager) handleAddServer(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -178,6 +190,16 @@ func (sm *ServerManager) handleRemoveServer(w http.ResponseWriter, r *http.Reque
 	fmt.Fprintf(w, "Server on port %d removed", port)
 }
 
+func (sm *ServerManager) handleListServers(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	servers := sm.ListServers()
+	json.NewEncoder(w).Encode(servers)
+}
+
 func main() {
 	// add logs everywhere
 	managerPort := os.Getenv("MANAGER_PORT")
@@ -197,7 +219,7 @@ func main() {
 
 	mux.HandleFunc("/servers/add", manager.handleAddServer)
 	mux.HandleFunc("/servers/remove", manager.handleRemoveServer)
-	// mux.HandleFunc("/servers/list", manager.handleListServers)
+	mux.HandleFunc("/servers/list", manager.handleListServers)
 	// mux.HandleFunc("/servers/get", manager.handleGetServer)
 
 	mux.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
