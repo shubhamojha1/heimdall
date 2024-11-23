@@ -39,3 +39,13 @@
 ├── go.mod                          # Go module file
 └── README.md                       # Project documentation
 ```
+
+## Server Manager commands:-
+1. Add new server: curl -X POST http://localhost:{MANAGER_PORT}/servers/add
+2. List all servers running: curl http://localhost:{MANAGER_PORT}/servers/list
+3. Get info about a specific server: curl http://localhost:{MANAGER_PORT}/servers/get?port={BASE_PORT}
+4. Remove a server: curl -X DELETE http://localhost:{MANAGER_PORT}/servers/remove?port={BASE_PORT}
+
+Note: 
+- {MANAGER_PORT} is the port at which the server manager is running.
+- {BASE_PORT} is the starting point from which new servers will be allocated ports (the closest one that i available)

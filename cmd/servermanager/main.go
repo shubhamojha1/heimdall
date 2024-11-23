@@ -271,6 +271,7 @@ func main() {
 		GET    /servers/get?port=X    - Get server info by port
 		GET    /status               - Check manager status
 		`)
+		// health checkpoint according to port, to send info to load balancer
 	})
 
 	log.Printf("Starting Server Manager on port %s", managerPort)
