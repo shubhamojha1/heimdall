@@ -1,9 +1,16 @@
 {
-    "layer": "l7",
+    "layer": "l4",
     "algorithm": "url_hash",
     "listen": {
         "port":8080,
         "address": "0.0.0.0"
+    },
+    "l4_settings": {
+        "tcp":{
+            "keepalive": true,
+            "keepalive_time": 900,
+            "max_connections": 5
+        }
     },
     "l7_settings": {
         "http": {
@@ -18,13 +25,17 @@
             "hash_method": "url"
         }
     },
-    "backends": [
-        {
-            "name": "backend1",
-            "url": "http://localhost:8080",
-            "weight": 5,
-            "max_connections": 1000,
-            "queue_full": false
-        }
-    ]
+    "healthcheck": {
+        "enabled": true,
+        "protocol": "http",
+        "interval":  100,
+        "timeout": 180,
+        "path": "/health",
+        "port": 9000,
+        "expected_status": "running"
+    },
+    "metrics": {
+        "enabled": false,
+        "port": 9999
+    }
 }

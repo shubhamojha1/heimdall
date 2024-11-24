@@ -13,16 +13,17 @@ import (
 	"time"
 
 	"github.com/shubhamojha1/heimdall/internal/config"
+	// "github.com/shubhamojha1/heimdall/internal/metrics"
 )
 
 // make a struct called serverInfo with config.Backend + startedAt time, status
 type ServerInfo struct {
-	Port       int       `json:"port"`
-	URL        string    `json:"url"`
-	Status     string    `json:"status"`
-	StartedAt  time.Time `json:"started_at"`
-	ConfigInfo config.Config
-	server     *http.Server `json:"-"`
+	Port      int          `json:"port"`
+	URL       string       `json:"url"`
+	Status    string       `json:"status"`
+	StartedAt time.Time    `json:"started_at"`
+	server    *http.Server `json:"-"`
+	// ServerMetrics *metrics.ServerMetrics
 }
 
 type ServerManager struct {
@@ -104,6 +105,9 @@ func (sm *ServerManager) AddServer() (*ServerInfo, error) {
 		}
 		ServerInfo.server = NewServer
 	}()
+
+	// send register message to service registry
+	// name, network location, health status
 
 	// wait for server to start
 	time.Sleep(100 * time.Millisecond)

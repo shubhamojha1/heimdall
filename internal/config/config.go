@@ -84,7 +84,7 @@ type Backend struct {
 	Metrics metrics.ServerMetrics `json:"metrics"`
 }
 
-// Represents the main configuration structure for the load balancer
+// main configuration structure for the load balancer
 type Config struct {
 	Layer     Layer     `json:"layer"`
 	Algorithm Algorithm `json:"algorithm"`
@@ -94,10 +94,12 @@ type Config struct {
 		Address string `json:"address"`
 	} `json:"listen"`
 
-	Backends []Backend `json:"backends"`
+	// remove backends[] as it will be managed and stored dynamically.
+	// Backends []Backend `json:"backends"`
 
-	L4Settings *L4Settings `json:"l4_settings,omitempty"`
-	L7Settings *L7Settings `json:"l7_settings,omitempty"`
+	// L4Settings *L4Settings `json:"l4_settings,omitempty"`
+	// L7Settings *L7Settings `json:"l7_settings,omitempty"`
+	LayerConfig interface{} `json:"-"`
 
 	HealthCheck HealthCheck `json:"healthcheck"`
 
@@ -114,7 +116,7 @@ type HealthCheck struct {
 	Timeout  time.Duration `json:"timeout"`
 	Path     string        `json:"path"`
 	Port     int           `json:"port"`
-	Expected int           `json:"expected_status,omitempty"`
+	Expected string        `json:"expected_status,omitempty"`
 }
 
 type L4Settings struct {
@@ -122,6 +124,8 @@ type L4Settings struct {
 		KeepAlive      bool          `json:"keepalive"`
 		KeepAliveTime  time.Duration `json:"keepalive_time"`
 		MaxConnections int           `json:"max_connections"`
+		// ConnectionTimeout	time.Duration	`json:connection_timeout,omitempty`
+		// IdleTimeout		time.Duration		`json:idle_timeout,omitempty`
 	} `json:"tcp"`
 }
 
@@ -192,13 +196,72 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	defer file.Close()
 
-	var config Config
-	if err := json.NewDecoder(file).Decode(&config); err != nil {
-		return nil, err
+	// var config Config
+	// if err := json.NewDecoder(file).Decode(&config); err != nil {
+	// 	return nil, err
+	// }
+
+	// initialize load balancer according to the layer
+	// var layerConfig interface{}
+	// if config.Layer == LayerFour {
+	// 	var l4_settings L4Settings
+	// 	if err := json.NewDecoder(file).Decode(&config); err != nil {
+	// 		return nil, err
+	// 	}
+	// 	layerConfig = l4_settings
+	// } else if config.Layer == LayerSeven {
+	// 	var l7_settings L7Settings
+	// 	if err := json.NewDecoder(file).Decode(&config); err != nil {
+	// 		return nil, err
+	// 	}
+	// 	layerConfig = l7_settings
+	// } else {
+	// 	return nil, fmt.Errorf("unsupported layer: %s", config.Layer)
+	// }
+
+	// if !config.Algorithm.IsValidForLayer(config.Layer) {
+	// 	return nil, fmt.Errorf("algorithm %s is not valid for layer %s", config.Algorithm, config.Layer)
+	// }
+
+	// return &Config{
+	// 	LayerConfig: layerConfig,
+	// }, nil
+	var temp struct {
+		Layer Layer `json:"layer"`
 	}
 
-	if !config.Algorithm.IsValidForLayer(config.Layer) {
-		return nil, fmt.Errorf("algorithm %s is not valid for layer %s", config.Algorithm, config.Layer)
+	if err := json.NewDecoder(file).Decode(&temp); err != nil {
+		return nil, fmt.Errorf("failed to decode layer: %w", err)
+	}
+
+	file.Seek(0, 0)
+	decoder := json.NewDecoder(file)
+
+	var config Config
+	switch temp.Layer {
+	case LayerFour:
+		var l4Config struct {
+			Config
+			L4Settings L4Settings `json:"l4_settings"`
+		}
+		if err := decoder.Decode(&l4Config); err != nil {
+			return nil, err
+		}
+		config = l4Config.Config
+		config.LayerConfig = l4Config.L4Settings
+
+	case LayerSeven:
+		var l7Config struct {
+			Config
+			L7Settings L7Settings `json:"l7_settings"`
+		}
+		if err := decoder.Decode(&l7Config); err != nil {
+			return nil, err
+		}
+		config = l7Config.Config
+		config.LayerConfig = l7Config.L7Settings
+	default:
+		return nil, fmt.Errorf("unsupported layer type: %s", temp.Layer)
 	}
 
 	return &config, nil
