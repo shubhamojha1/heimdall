@@ -1,6 +1,6 @@
 {
     "layer": "l4",
-    "algorithm": "url_hash",
+    "algorithm": "cookie_based",
     "listen": {
         "port":8080,
         "address": "0.0.0.0"
