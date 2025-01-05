@@ -1,6 +1,6 @@
 {
     "layer": "l4",
-    "algorithm": "cookie_based",
+    "algorithm": "round_robin",
     "listen": {
         "port":8080,
         "address": "0.0.0.0"

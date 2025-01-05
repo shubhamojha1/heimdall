@@ -264,6 +264,10 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, fmt.Errorf("unsupported layer type: %s", temp.Layer)
 	}
 
+	if !config.Algorithm.IsValidForLayer(config.Layer) {
+		return nil, fmt.Errorf("algorithm %s is not valid for layer %s", config.Algorithm, config.Layer)
+	}
+
 	return &config, nil
 }
 
