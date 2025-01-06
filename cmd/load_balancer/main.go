@@ -101,12 +101,26 @@ func NewServiceRegistry() (*registry.ServiceRegistry, error) {
 
 	srMux := http.NewServeMux()
 	srMux.HandleFunc("/", sr.HandleHTTP)
+	srMux.HandleFunc("/register", sr.HandleRegister)
+	srMux.HandleFunc("/heartbeat", sr.HandleHeartbeat)
+
+	// grpcServer := grpc.NewServer()
+	// pb.RegisterServiceRegistryServer(grpcServer, sr)
+
 	go func() {
-		log.Printf("Starting HTTP Load Balancer on port %s", ServiceRegistryPort)
+		log.Printf("Starting HTTP Service Registry on port %s", ServiceRegistryPort)
 		if err := http.ListenAndServe(":"+ServiceRegistryPort, srMux); err != nil {
 			log.Fatalf("Failed to start HTTP server: %v", err)
 		}
 	}()
+
+	// start gRPC server concurrently
+	// go func() {
+	// 	log.Printf("Starting gRPC Service Registry on port %s", ServiceRegistryPort)
+	// 	if err := http.ListenAndServe(":"+ServiceRegistryPort, srMux); err != nil {
+	// 		log.Fatalf("Failed to start HTTP server: %v", err)
+	// 	}
+	// }()
 
 	return sr, nil
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/shubhamojha1/heimdall/internal/config"
+	"github.com/shubhamojha1/heimdall/internal/metrics"
 	// "github.com/shubhamojha1/heimdall/internal/metrics"
 )
 
@@ -108,10 +110,94 @@ func (sm *ServerManager) AddServer() (*ServerInfo, error) {
 
 	// send register message to service registry
 	// name, network location, health status
+	// go func()
 
 	// wait for server to start
 	time.Sleep(100 * time.Millisecond)
+
+	go func() {
+		backend := &config.Backend{
+			Name: "abc",
+			URL:  fmt.Sprintf("http://localhost:%d", port),
+			// Status: "healthy",
+		}
+
+		data, err := json.Marshal(backend)
+		if err != nil {
+			log.Printf("Failed to marshal backend info: %v", err)
+			return
+		}
+
+		response, err := http.Post("http://localhost:10000",
+			"application/json", bytes.NewBuffer(data))
+		if err != nil {
+			log.Printf("Failed to send register message: %v", err)
+			return
+		}
+		defer response.Body.Close()
+
+		if response.StatusCode != http.StatusOK {
+			log.Printf("Failed to register backend, status code: %d", response.StatusCode)
+			return
+		}
+
+		log.Printf("REgistered backend: %v", backend)
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	go sm.startHeartbeat(ServerInfo)
+
+	ServerInfo.Status = "running"
 	return ServerInfo, nil
+}
+
+func (sm *ServerManager) startHeartbeat(serverInfo *ServerInfo) {
+	ticker := time.NewTicker(5 * time.Second) // change to higher number
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			sm.sendHeartbeat(serverInfo)
+		}
+	}
+}
+
+func (sm *ServerManager) sendHeartbeat(serverInfo *ServerInfo) {
+	heartbeat := struct {
+		Port      int                    `json:"port"`
+		URL       string                 `json:"url"`
+		Status    string                 `json:"status"`
+		StartedAt time.Time              `json:"started_at"`
+		Metrics   *metrics.ServerMetrics `json:"metrics"`
+	}{
+		Port:      serverInfo.Port,
+		URL:       serverInfo.URL,
+		Status:    serverInfo.Status,
+		StartedAt: serverInfo.StartedAt,
+		// Metrics:   serverInfo.ServerMetrics,
+	}
+
+	data, err := json.Marshal(heartbeat)
+	if err != nil {
+		log.Printf("Failed to marshal heartbeat info: %v", err)
+		return
+	}
+
+	resp, err := http.Post("http://localhost:10000/heartbeat", "application/json", bytes.NewBuffer(data))
+	if err != nil {
+		log.Printf("Failed to send heartbeat message: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Failed to send heartbeat, status code: %d", resp.StatusCode)
+		return
+	}
+
+	log.Printf("Sent heartbeat for server on port %d", serverInfo.Port)
 }
 
 func (sm *ServerManager) RemoveServer(port int) error {
