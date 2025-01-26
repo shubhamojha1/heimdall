@@ -128,7 +128,7 @@ func (sm *ServerManager) AddServer() (*ServerInfo, error) {
 			return
 		}
 
-		response, err := http.Post("http://localhost:10000",
+		response, err := http.Post("http://localhost:10000/register",
 			"application/json", bytes.NewBuffer(data))
 		if err != nil {
 			log.Printf("Failed to send register message: %v", err)
@@ -150,6 +150,70 @@ func (sm *ServerManager) AddServer() (*ServerInfo, error) {
 
 	ServerInfo.Status = "running"
 	return ServerInfo, nil
+}
+
+func (sm *ServerManager) RemoveServer(port int) error {
+	sm.mutex.Lock()
+	serverInfo, exists := sm.servers[port]
+	if !exists {
+		sm.mutex.Unlock()
+		return fmt.Errorf("server on port %d not found", port)
+	}
+
+	// Update status before releasing lock
+	serverInfo.Status = "shutting_down"
+	sm.mutex.Unlock()
+
+	// Create a context with timeout for shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	go func() {
+		backend := &config.Backend{
+			Name: "abc",
+			URL:  fmt.Sprintf("http://localhost:%d", port),
+			// Status: "healthy",
+		}
+
+		data, err := json.Marshal(backend)
+		if err != nil {
+			log.Printf("Failed to marshal backend info: %v", err)
+			return
+		}
+
+		response, err := http.Post("http://localhost:10000/remove",
+			"application/json", bytes.NewBuffer(data))
+		if err != nil {
+			log.Printf("Failed to send remove message: %v", err)
+			return
+		}
+		defer response.Body.Close()
+
+		if response.StatusCode != http.StatusOK {
+			log.Printf("Failed to remove backend, status code: %d", response.StatusCode)
+			return
+		}
+
+		log.Printf("Removed backend: %v", backend)
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Gracefully shutdown the server
+	if err := serverInfo.server.Shutdown(ctx); err != nil {
+		// If graceful shutdown fails, force close
+		serverInfo.server.Close()
+		return fmt.Errorf("error shutting down server on port %d: %v", port, err)
+	}
+
+	// Remove from map after successful shutdown
+	sm.mutex.Lock()
+	delete(sm.servers, port)
+	sm.mutex.Unlock()
+
+	time.Sleep(100 * time.Millisecond)
+
+	return nil
 }
 
 func (sm *ServerManager) startHeartbeat(serverInfo *ServerInfo) {
@@ -198,37 +262,6 @@ func (sm *ServerManager) sendHeartbeat(serverInfo *ServerInfo) {
 	}
 
 	log.Printf("Sent heartbeat for server on port %d", serverInfo.Port)
-}
-
-func (sm *ServerManager) RemoveServer(port int) error {
-	sm.mutex.Lock()
-	serverInfo, exists := sm.servers[port]
-	if !exists {
-		sm.mutex.Unlock()
-		return fmt.Errorf("server on port %d not found", port)
-	}
-
-	// Update status before releasing lock
-	serverInfo.Status = "shutting_down"
-	sm.mutex.Unlock()
-
-	// Create a context with timeout for shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Gracefully shutdown the server
-	if err := serverInfo.server.Shutdown(ctx); err != nil {
-		// If graceful shutdown fails, force close
-		serverInfo.server.Close()
-		return fmt.Errorf("error shutting down server on port %d: %v", port, err)
-	}
-
-	// Remove from map after successful shutdown
-	sm.mutex.Lock()
-	delete(sm.servers, port)
-	sm.mutex.Unlock()
-
-	return nil
 }
 
 func (sm *ServerManager) ListServers() []*ServerInfo {
