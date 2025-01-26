@@ -56,6 +56,7 @@ type Backend struct {
 	Name   string `json:"name"`
 	URL    string `json:"url"`
 	Weight int    `json:"weight"`
+	// Port   int    `json:"port"`
 
 	// Connection limits
 	MaxConns          int           `json:"max_connections"`

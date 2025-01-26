@@ -37,7 +37,7 @@ func (lb *LoadBalancer) handleConnection(clientConn net.Conn) {
 }
 
 func (lb *LoadBalancer) HandleHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Println("Handling HTTP request...")
+	log.Println("[LB Server] Handling HTTP request...")
 
 	w.Write([]byte("Hello from load balancer!"))
 }

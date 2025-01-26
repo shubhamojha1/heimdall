@@ -20,7 +20,7 @@ type ServiceRegistry struct {
 }
 
 func (sr *ServiceRegistry) HandleHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Println("Handling HTTP request...")
+	log.Println("[Registry] Handling HTTP request...")
 
 	w.Write([]byte("Hello from service registry!"))
 }
@@ -43,6 +43,32 @@ func (sr *ServiceRegistry) HandleRegister(w http.ResponseWriter, r *http.Request
 
 	log.Printf("Registered backend: %v", backend)
 	w.WriteHeader(http.StatusOK)
+}
+
+func (sr *ServiceRegistry) HandleRemove(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var backend config.Backend
+	if err := json.NewDecoder(r.Body).Decode(&backend); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+
+	sr.mu.Lock()
+	for i, b := range sr.Backends {
+		if b.URL == backend.URL {
+			sr.Backends = append(sr.Backends[:i], sr.Backends[i+1:]...)
+			break
+		}
+	}
+	sr.mu.Unlock()
+
+	log.Printf("Removed backend: %v", backend)
+	w.WriteHeader(http.StatusOK)
+
 }
 
 func (sr *ServiceRegistry) HandleHeartbeat(w http.ResponseWriter, r *http.Request) {
