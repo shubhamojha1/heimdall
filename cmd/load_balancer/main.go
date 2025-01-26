@@ -103,6 +103,7 @@ func NewServiceRegistry() (*registry.ServiceRegistry, error) {
 	srMux.HandleFunc("/", sr.HandleHTTP)
 	srMux.HandleFunc("/register", sr.HandleRegister)
 	srMux.HandleFunc("/heartbeat", sr.HandleHeartbeat)
+	srMux.HandleFunc("/remove", sr.HandleRemove)
 
 	// grpcServer := grpc.NewServer()
 	// pb.RegisterServiceRegistryServer(grpcServer, sr)
@@ -121,12 +122,13 @@ func NewServiceRegistry() (*registry.ServiceRegistry, error) {
 	// 		log.Fatalf("Failed to start HTTP server: %v", err)
 	// 	}
 	// }()
+	fmt.Println("Service Registry started: ", time.Now().String())
 
 	return sr, nil
 
 }
 
-func NewLoadBalancer(configuration *config.Config) (*server.LoadBalancer, error) {
+func NewLoadBalancer(configuration *config.Config, NewServiceRegistry *registry.ServiceRegistry) (*server.LoadBalancer, error) {
 	// layer := configuration.Layer
 	// algo := configuration.Algorithm
 	// // layerConfig := configuration.LayerConfig
@@ -163,10 +165,10 @@ func NewLoadBalancer(configuration *config.Config) (*server.LoadBalancer, error)
 
 	// ServiceRegistryPort := os.Getenv("SERVICE_REGISTRY_PORT")
 
-	NewServiceRegistry, err := NewServiceRegistry()
-	if err != nil {
-		return nil, fmt.Errorf("Failed to create service registry: %v", err)
-	}
+	// NewServiceRegistry, err := NewServiceRegistry()
+	// if err != nil {
+	// 	return nil, fmt.Errorf("Failed to create service registry: %v", err)
+	// }
 	// listener, err := ser
 
 	lb := &server.LoadBalancer{
@@ -187,6 +189,8 @@ func NewLoadBalancer(configuration *config.Config) (*server.LoadBalancer, error)
 			log.Fatalf("Failed to start HTTP server: %v", err)
 		}
 	}()
+
+	fmt.Println("Load Balancer started: ", time.Now().String())
 
 	return lb, nil
 }
@@ -210,6 +214,12 @@ func main() {
 
 	defer watcher.Close()
 
+	NewServiceRegistry, err := NewServiceRegistry()
+	if err != nil {
+		// return fmt.Errorf("Failed to create service registry: %v", err)
+		log.Fatalf("failed to load config: %v", err)
+	}
+
 	var currentLoadBalancer *server.LoadBalancer
 	applyConfig := func() error {
 		// Stop existing load balancer if it exists
@@ -224,7 +234,7 @@ func main() {
 		}
 
 		// Create new load balancer
-		newLoadBalancer, err := NewLoadBalancer(cfg)
+		newLoadBalancer, err := NewLoadBalancer(cfg, NewServiceRegistry)
 		if err != nil {
 			return fmt.Errorf("failed to create load balancer: %v", err)
 		}
