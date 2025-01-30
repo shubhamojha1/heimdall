@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/shubhamojha1/heimdall/internal/config"
-	"github.com/shubhamojha1/heimdall/internal/registry"
 )
 
 // type ServiceRegistry struct {
@@ -21,9 +20,9 @@ type LoadBalancer struct {
 	mu            sync.RWMutex
 	Configuration *config.Config
 	// LayerConfig     interface{} `json"-"`
-	ServiceRegistry *registry.ServiceRegistry
-	stopChan        chan struct{}
-	listener        http.Server // for clients outside the network to connect to a server via the load balancer
+	// ServiceRegistry *registry.ServiceRegistry (implementing as a separate process)
+	stopChan chan struct{}
+	listener http.Server // for clients outside the network to connect to a server via the load balancer
 }
 
 func (lb *LoadBalancer) handleConnection(clientConn net.Conn) {

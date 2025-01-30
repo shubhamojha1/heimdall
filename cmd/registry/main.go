@@ -1,11 +1,15 @@
-package registry
+package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 	"time"
+
+	"github.com/joho/godotenv"
 
 	"github.com/shubhamojha1/heimdall/internal/config"
 	"github.com/shubhamojha1/heimdall/internal/metrics"
@@ -17,6 +21,46 @@ type ServiceRegistry struct {
 	listener     http.Server // for getting info from backends
 	mu           sync.Mutex
 	// UpdateInterval time.Duration
+}
+
+func NewServiceRegistry() (*ServiceRegistry, error) {
+	ServiceRegistryPort := os.Getenv("SERVICE_REGISTRY_PORT")
+	if ServiceRegistryPort == "" {
+		return &ServiceRegistry{}, fmt.Errorf("SERVICE_REGISTRY_PORT environment variable not defined")
+	}
+
+	sr := &ServiceRegistry{
+		Backends:     make([]*config.Backend, 0),
+		HealthChecks: make([]*config.HealthCheck, 0),
+	}
+
+	srMux := http.NewServeMux()
+	srMux.HandleFunc("/", sr.HandleHTTP)
+	srMux.HandleFunc("/register", sr.HandleRegister)
+	srMux.HandleFunc("/heartbeat", sr.HandleHeartbeat)
+	srMux.HandleFunc("/remove", sr.HandleRemove)
+
+	// grpcServer := grpc.NewServer()
+	// pb.RegisterServiceRegistryServer(grpcServer, sr)
+
+	go func() {
+		log.Printf("Starting HTTP Service Registry on port %s", ServiceRegistryPort)
+		if err := http.ListenAndServe(":"+ServiceRegistryPort, srMux); err != nil {
+			log.Fatalf("Failed to start HTTP server: %v", err)
+		}
+	}()
+
+	// start gRPC server concurrently
+	// go func() {
+	// 	log.Printf("Starting gRPC Service Registry on port %s", ServiceRegistryPort)
+	// 	if err := http.ListenAndServe(":"+ServiceRegistryPort, srMux); err != nil {
+	// 		log.Fatalf("Failed to start HTTP server: %v", err)
+	// 	}
+	// }()
+	fmt.Println("Service Registry started: ", time.Now().String())
+
+	return sr, nil
+
 }
 
 func (sr *ServiceRegistry) HandleHTTP(w http.ResponseWriter, r *http.Request) {
@@ -103,8 +147,21 @@ func (sr *ServiceRegistry) HandleHeartbeat(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusOK)
 }
 
-func (sr *ServiceRegistry) AddBackend(backend *config.Backend) {
-	sr.Backends = append(sr.Backends, backend)
+//	func (sr *ServiceRegistry) AddBackend(backend *config.Backend) {
+//		sr.Backends = append(sr.Backends, backend)
+//	}
+func main() {
+	if err := godotenv.Load(); err != nil {
+		log.Fatalf("Error loading .env file: %v", err)
+	}
+
+	_, err := NewServiceRegistry()
+	if err != nil {
+		log.Fatalf("Failed to start service registry: %v", err)
+	}
+
+	select {}
+	// block main goroutine to keep the servers running
 }
 
 // start load balancer first

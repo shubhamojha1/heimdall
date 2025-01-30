@@ -10,7 +10,8 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/joho/godotenv"
 	"github.com/shubhamojha1/heimdall/internal/config"
-	"github.com/shubhamojha1/heimdall/internal/registry"
+
+	// "github.com/shubhamojha1/heimdall/internal/registry"
 
 	"github.com/shubhamojha1/heimdall/internal/server"
 )
@@ -88,47 +89,47 @@ import (
 // add multiple servers as such
 // when a new client comes in, it will talk only to the load balancer
 // so load balancer is also a service registry
-func NewServiceRegistry() (*registry.ServiceRegistry, error) {
-	ServiceRegistryPort := os.Getenv("SERVICE_REGISTRY_PORT")
-	if ServiceRegistryPort == "" {
-		return nil, fmt.Errorf("SERVICE_REGISTRY_PORT environment variable not defined")
-	}
+// func NewServiceRegistry() (*registry.ServiceRegistry, error) {
+// 	ServiceRegistryPort := os.Getenv("SERVICE_REGISTRY_PORT")
+// 	if ServiceRegistryPort == "" {
+// 		return nil, fmt.Errorf("SERVICE_REGISTRY_PORT environment variable not defined")
+// 	}
 
-	sr := &registry.ServiceRegistry{
-		Backends:     make([]*config.Backend, 0),
-		HealthChecks: make([]*config.HealthCheck, 0),
-	}
+// 	sr := &registry.ServiceRegistry{
+// 		Backends:     make([]*config.Backend, 0),
+// 		HealthChecks: make([]*config.HealthCheck, 0),
+// 	}
 
-	srMux := http.NewServeMux()
-	srMux.HandleFunc("/", sr.HandleHTTP)
-	srMux.HandleFunc("/register", sr.HandleRegister)
-	srMux.HandleFunc("/heartbeat", sr.HandleHeartbeat)
-	srMux.HandleFunc("/remove", sr.HandleRemove)
+// 	srMux := http.NewServeMux()
+// 	srMux.HandleFunc("/", sr.HandleHTTP)
+// 	srMux.HandleFunc("/register", sr.HandleRegister)
+// 	srMux.HandleFunc("/heartbeat", sr.HandleHeartbeat)
+// 	srMux.HandleFunc("/remove", sr.HandleRemove)
 
-	// grpcServer := grpc.NewServer()
-	// pb.RegisterServiceRegistryServer(grpcServer, sr)
+// 	// grpcServer := grpc.NewServer()
+// 	// pb.RegisterServiceRegistryServer(grpcServer, sr)
 
-	go func() {
-		log.Printf("Starting HTTP Service Registry on port %s", ServiceRegistryPort)
-		if err := http.ListenAndServe(":"+ServiceRegistryPort, srMux); err != nil {
-			log.Fatalf("Failed to start HTTP server: %v", err)
-		}
-	}()
+// 	go func() {
+// 		log.Printf("Starting HTTP Service Registry on port %s", ServiceRegistryPort)
+// 		if err := http.ListenAndServe(":"+ServiceRegistryPort, srMux); err != nil {
+// 			log.Fatalf("Failed to start HTTP server: %v", err)
+// 		}
+// 	}()
 
-	// start gRPC server concurrently
-	// go func() {
-	// 	log.Printf("Starting gRPC Service Registry on port %s", ServiceRegistryPort)
-	// 	if err := http.ListenAndServe(":"+ServiceRegistryPort, srMux); err != nil {
-	// 		log.Fatalf("Failed to start HTTP server: %v", err)
-	// 	}
-	// }()
-	fmt.Println("Service Registry started: ", time.Now().String())
+// 	// start gRPC server concurrently
+// 	// go func() {
+// 	// 	log.Printf("Starting gRPC Service Registry on port %s", ServiceRegistryPort)
+// 	// 	if err := http.ListenAndServe(":"+ServiceRegistryPort, srMux); err != nil {
+// 	// 		log.Fatalf("Failed to start HTTP server: %v", err)
+// 	// 	}
+// 	// }()
+// 	fmt.Println("Service Registry started: ", time.Now().String())
 
-	return sr, nil
+// 	return sr, nil
 
-}
+// }
 
-func NewLoadBalancer(configuration *config.Config, NewServiceRegistry *registry.ServiceRegistry) (*server.LoadBalancer, error) {
+func NewLoadBalancer(configuration *config.Config) (*server.LoadBalancer, error) {
 	// layer := configuration.Layer
 	// algo := configuration.Algorithm
 	// // layerConfig := configuration.LayerConfig
@@ -163,7 +164,8 @@ func NewLoadBalancer(configuration *config.Config, NewServiceRegistry *registry.
 	// }
 	// load service registry first
 
-	// ServiceRegistryPort := os.Getenv("SERVICE_REGISTRY_PORT")
+	ServiceRegistryPort := os.Getenv("SERVICE_REGISTRY_PORT")
+	fmt.Printf("%s", ServiceRegistryPort)
 
 	// NewServiceRegistry, err := NewServiceRegistry()
 	// if err != nil {
@@ -172,8 +174,8 @@ func NewLoadBalancer(configuration *config.Config, NewServiceRegistry *registry.
 	// listener, err := ser
 
 	lb := &server.LoadBalancer{
-		Configuration:   configuration,
-		ServiceRegistry: NewServiceRegistry,
+		Configuration: configuration,
+		// ServiceRegistry: NewServiceRegistry,
 	}
 
 	LoadBalancerPort := os.Getenv("LOAD_BALANCER_PORT")
@@ -214,11 +216,10 @@ func main() {
 
 	defer watcher.Close()
 
-	NewServiceRegistry, err := NewServiceRegistry()
-	if err != nil {
-		// return fmt.Errorf("Failed to create service registry: %v", err)
-		log.Fatalf("failed to load config: %v", err)
-	}
+	// NewServiceRegistry, err := NewServiceRegistry()
+	// if err != nil {
+	// 	log.Fatalf("failed to load config: %v", err)
+	// }
 
 	var currentLoadBalancer *server.LoadBalancer
 	applyConfig := func() error {
@@ -234,7 +235,7 @@ func main() {
 		}
 
 		// Create new load balancer
-		newLoadBalancer, err := NewLoadBalancer(cfg, NewServiceRegistry)
+		newLoadBalancer, err := NewLoadBalancer(cfg)
 		if err != nil {
 			return fmt.Errorf("failed to create load balancer: %v", err)
 		}
