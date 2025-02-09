@@ -11,9 +11,8 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/shubhamojha1/heimdall/internal/config"
 
-	// "github.com/shubhamojha1/heimdall/internal/registry"
-
 	"github.com/shubhamojha1/heimdall/internal/server"
+	"google.golang.org/grpc"
 )
 
 // refer to server metrics needed by the lb. important
@@ -26,152 +25,7 @@ import (
 // 	UpdateInterval time.Duration
 // }
 
-// type LoadBalancer struct {
-// 	mu              sync.RWMutex
-// 	Configuration   *config.Config
-// 	LayerConfig     interface{} `json"-"`
-// 	ServiceRegistry ServiceRegistry
-// 	stopChan        chan struct{}
-// 	listener        net.Listener
-// }
-
-// clear concepts wrt each L4 algorithm first.
-// then start implementation
-// func (lb *LoadBalancer) selectBackend() string{
-// 	index :=
-// }
-
-// func (lb *LoadBalancer) handleConnectionRoundRobin
-
-// func (lb *server.LoadBalancer) handleConnection(clientConn net.Conn) {
-// 	defer clientConn.Close()
-
-// 	if lb.Configuration.Algorithm == config.AlgorithmRoundRobin {
-// 		backendAddrs := lb.selectBackend()
-// 		algorithms.handleConnectionRoundRobin(lb, clientConn)
-// 	}
-// }
-
-// func (lb *server.LoadBalancer) Start() error {
-// 	log.Println("Starting Load Balancer...")
-// 	log.Println("PORT: ", os.Getenv("LOAD_BALANCER_PORT"))
-// 	// listen for new client requests
-
-// 	for {
-// 		clientConn, err := lb.listener.Accept()
-// 		if err != nil {
-// 			log.Printf("Error accepting connection: %v", err)
-// 			continue
-// 		}
-
-// 		go lb.handleConnection(clientConn)
-// 	}
-
-// 	// go lb.runHealthChecks()
-
-// 	return nil
-// }
-
-// func (lb *LoadBalancer) Stop() {
-// 	lb.mu.Lock()
-// 	defer lb.mu.Unlock()
-
-// 	close(lb.stopChan)
-// 	log.Println("Load Balancer stopped")
-// }
-
-// start load balancer first
-// load the service registry along with load balancer
-// start server manager
-// add servers
-// as servers are added, send server inital info to service registry
-// to register the service
-// add multiple servers as such
-// when a new client comes in, it will talk only to the load balancer
-// so load balancer is also a service registry
-// func NewServiceRegistry() (*registry.ServiceRegistry, error) {
-// 	ServiceRegistryPort := os.Getenv("SERVICE_REGISTRY_PORT")
-// 	if ServiceRegistryPort == "" {
-// 		return nil, fmt.Errorf("SERVICE_REGISTRY_PORT environment variable not defined")
-// 	}
-
-// 	sr := &registry.ServiceRegistry{
-// 		Backends:     make([]*config.Backend, 0),
-// 		HealthChecks: make([]*config.HealthCheck, 0),
-// 	}
-
-// 	srMux := http.NewServeMux()
-// 	srMux.HandleFunc("/", sr.HandleHTTP)
-// 	srMux.HandleFunc("/register", sr.HandleRegister)
-// 	srMux.HandleFunc("/heartbeat", sr.HandleHeartbeat)
-// 	srMux.HandleFunc("/remove", sr.HandleRemove)
-
-// 	// grpcServer := grpc.NewServer()
-// 	// pb.RegisterServiceRegistryServer(grpcServer, sr)
-
-// 	go func() {
-// 		log.Printf("Starting HTTP Service Registry on port %s", ServiceRegistryPort)
-// 		if err := http.ListenAndServe(":"+ServiceRegistryPort, srMux); err != nil {
-// 			log.Fatalf("Failed to start HTTP server: %v", err)
-// 		}
-// 	}()
-
-// 	// start gRPC server concurrently
-// 	// go func() {
-// 	// 	log.Printf("Starting gRPC Service Registry on port %s", ServiceRegistryPort)
-// 	// 	if err := http.ListenAndServe(":"+ServiceRegistryPort, srMux); err != nil {
-// 	// 		log.Fatalf("Failed to start HTTP server: %v", err)
-// 	// 	}
-// 	// }()
-// 	fmt.Println("Service Registry started: ", time.Now().String())
-
-// 	return sr, nil
-
-// }
-
 func NewLoadBalancer(configuration *config.Config) (*server.LoadBalancer, error) {
-	// layer := configuration.Layer
-	// algo := configuration.Algorithm
-	// // layerConfig := configuration.LayerConfig
-	// lg := configuration.LayerConfig
-	// fmt.Printf("%s %s \n\n %s", layer, lg, algo)
-
-	// if algo == config.AlgorithmRoundRobin {
-	// 	algorithms.round_robin.
-	// }
-
-	// algorithm := configuration.Algorithm
-	// port := configuration.Listen.Port
-	// address := configuration.Listen.Address
-
-	// L4Settings := configuration.L4Settings
-	// TCPKeepAlive := L4Settings.TCP.KeepAlive
-	// TCPKeepAliveTime := L4Settings.TCP.KeepAliveTime * time.Second
-	// MaxConnections := L4Settings.TCP.MaxConnections
-
-	// var layerConfig interface{}
-	// if layer == config.LayerFour {
-	// 	layerConfig = config.L4Settings
-	// }
-
-	// switch settings := configuration.LayerConfig.(type) {
-	// case config.L4Settings:
-	// 	fmt.Printf("L4 Max Connections: %d\n", settings.MaxConnections)
-	// case config.L7Settings:
-	// 	fmt.Printf("L7 Max Header Size: %d\n", settings.MaxHeaderSize)
-	// default:
-	// 	fmt.Println("Unknown layer configuration")
-	// }
-	// load service registry first
-
-	ServiceRegistryPort := os.Getenv("SERVICE_REGISTRY_PORT")
-	fmt.Printf("%s", ServiceRegistryPort)
-
-	// NewServiceRegistry, err := NewServiceRegistry()
-	// if err != nil {
-	// 	return nil, fmt.Errorf("Failed to create service registry: %v", err)
-	// }
-	// listener, err := ser
 
 	lb := &server.LoadBalancer{
 		Configuration: configuration,
@@ -197,6 +51,8 @@ func NewLoadBalancer(configuration *config.Config) (*server.LoadBalancer, error)
 	return lb, nil
 }
 
+func SendHelloToServiceRegistry()
+
 func main() {
 
 	if err := godotenv.Load(); err != nil {
@@ -215,11 +71,6 @@ func main() {
 	}
 
 	defer watcher.Close()
-
-	// NewServiceRegistry, err := NewServiceRegistry()
-	// if err != nil {
-	// 	log.Fatalf("failed to load config: %v", err)
-	// }
 
 	var currentLoadBalancer *server.LoadBalancer
 	applyConfig := func() error {
@@ -253,6 +104,10 @@ func main() {
 	if err := applyConfig(); err != nil {
 		log.Fatalf("Initial configuration load failed: %v", err)
 	}
+
+	// notify service registry about new load balancer
+	// grpc
+	resp, err := grpc.NewClient()
 
 	// add config file to watcher
 	if err := watcher.Add(configPath); err != nil {

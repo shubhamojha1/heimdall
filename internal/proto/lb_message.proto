@@ -1,0 +1,13 @@
+syntax = "proto3"
+package load_balancer;
+option go_package = "github.com/shubhamojha1/heimdall/cmd/load_balancer";
+
+message LoadBalancer {
+    string sender = 1;
+    string receiver = 2;
+    string message = 3;
+}
+
+service MessageService {
+    rpc SendHello (abc) returns (xyz) {}
+}

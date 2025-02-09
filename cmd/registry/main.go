@@ -24,9 +24,14 @@ type ServiceRegistry struct {
 }
 
 func NewServiceRegistry() (*ServiceRegistry, error) {
-	ServiceRegistryPort := os.Getenv("SERVICE_REGISTRY_PORT")
-	if ServiceRegistryPort == "" {
-		return &ServiceRegistry{}, fmt.Errorf("SERVICE_REGISTRY_PORT environment variable not defined")
+	ServiceRegistryHTTPPort := os.Getenv("SERVICE_REGISTRY_HTTP_PORT")
+	if ServiceRegistryHTTPPort == "" {
+		return &ServiceRegistry{}, fmt.Errorf("SERVICE_REGISTRY_HTTP_PORT environment variable not defined")
+	}
+
+	ServiceRegistryGRPCPort := os.Getenv("SERVICE_REGISTRY_GRPC_PORT")
+	if ServiceRegistryGRPCPort == "" {
+		return &ServiceRegistry{}, fmt.Errorf("SERVICE_REGISTRY_GRPC_PORT environment variable not defined")
 	}
 
 	sr := &ServiceRegistry{
@@ -44,19 +49,16 @@ func NewServiceRegistry() (*ServiceRegistry, error) {
 	// pb.RegisterServiceRegistryServer(grpcServer, sr)
 
 	go func() {
-		log.Printf("Starting HTTP Service Registry on port %s", ServiceRegistryPort)
-		if err := http.ListenAndServe(":"+ServiceRegistryPort, srMux); err != nil {
+		log.Printf("Starting HTTP Service Registry on port %s", ServiceRegistryHTTPPort)
+		if err := http.ListenAndServe(":"+ServiceRegistryHTTPPort, srMux); err != nil {
 			log.Fatalf("Failed to start HTTP server: %v", err)
 		}
 	}()
 
 	// start gRPC server concurrently
-	// go func() {
-	// 	log.Printf("Starting gRPC Service Registry on port %s", ServiceRegistryPort)
-	// 	if err := http.ListenAndServe(":"+ServiceRegistryPort, srMux); err != nil {
-	// 		log.Fatalf("Failed to start HTTP server: %v", err)
-	// 	}
-	// }()
+	go func() {
+		listen, err := net.Listen("tcp", ":{}")
+	}
 	fmt.Println("Service Registry started: ", time.Now().String())
 
 	return sr, nil
@@ -159,6 +161,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to start service registry: %v", err)
 	}
+	// send info to load balancer
 
 	select {}
 	// block main goroutine to keep the servers running
