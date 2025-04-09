@@ -21,8 +21,8 @@ type LoadBalancer struct {
 	Configuration *config.Config
 	// LayerConfig     interface{} `json"-"`
 	// ServiceRegistry *registry.ServiceRegistry (implementing as a separate process)
-	stopChan chan struct{}
-	listener http.Server // for clients outside the network to connect to a server via the load balancer
+	StopChan chan struct{} // load balancer ka channel
+	listener http.Server   // for clients outside the network to connect to a server via the load balancer
 }
 
 func (lb *LoadBalancer) handleConnection(clientConn net.Conn) {
@@ -44,6 +44,7 @@ func (lb *LoadBalancer) HandleHTTP(w http.ResponseWriter, r *http.Request) {
 func (lb *LoadBalancer) Start() error {
 	log.Println("Starting Load Balancer...")
 	log.Println("PORT: ", os.Getenv("LOAD_BALANCER_PORT"))
+	// lbChannel := make(lb.stopChan)
 	// add additional checks later
 	// listen for new client requests
 
@@ -66,6 +67,8 @@ func (lb *LoadBalancer) Stop() {
 	lb.mu.Lock()
 	defer lb.mu.Unlock()
 
-	close(lb.stopChan)
+	if lb.StopChan != nil {
+		close(lb.StopChan)
+	}
 	log.Println("Load Balancer stopped")
 }

@@ -1,6 +1,6 @@
 {
-    "layer": "l4",
-    "algorithm": "round_robin",
+    "layer": "l7",
+    "algorithm": "ip_hash",
     "listen": {
         "port":8080,
         "address": "0.0.0.0"

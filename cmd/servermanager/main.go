@@ -181,7 +181,7 @@ func (sm *ServerManager) RemoveServer(port int) error {
 			return
 		}
 
-		response, err := http.Post("http://localhost:10000/remove",
+		response, err := http.Post("http://localhost:10000/remove", // call to service registry port = 10000
 			"application/json", bytes.NewBuffer(data))
 		if err != nil {
 			log.Printf("Failed to send remove message: %v", err)

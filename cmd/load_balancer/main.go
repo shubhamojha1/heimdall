@@ -1,10 +1,15 @@
 package main
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -12,24 +17,26 @@ import (
 	"github.com/shubhamojha1/heimdall/internal/config"
 
 	"github.com/shubhamojha1/heimdall/internal/server"
-	"google.golang.org/grpc"
 )
 
 // refer to server metrics needed by the lb. important
 
 // move these structs to a common folder (/internal/server)
 // then import here and in algorithms.go
-// type ServiceRegistry struct {
-// 	Backends       []*config.Backend
-// 	HealthChecks   []*config.HealthCheck
-// 	UpdateInterval time.Duration
-// }
+//
+//	type ServiceRegistry struct {
+//		Backends       []*config.Backend
+//		HealthChecks   []*config.HealthCheck
+//		UpdateInterval time.Duration
+//	}
+var httpServer *http.Server
 
 func NewLoadBalancer(configuration *config.Config) (*server.LoadBalancer, error) {
 
 	lb := &server.LoadBalancer{
 		Configuration: configuration,
 		// ServiceRegistry: NewServiceRegistry,
+		StopChan: make(chan struct{}),
 	}
 
 	LoadBalancerPort := os.Getenv("LOAD_BALANCER_PORT")
@@ -39,19 +46,56 @@ func NewLoadBalancer(configuration *config.Config) (*server.LoadBalancer, error)
 
 	lbMux := http.NewServeMux()
 	lbMux.HandleFunc("/", lb.HandleHTTP)
+
+	httpServer := &http.Server{
+		Addr:    ":" + LoadBalancerPort,
+		Handler: lbMux,
+	}
+
 	go func() {
 		log.Printf("Starting HTTP Load Balancer on port %s", LoadBalancerPort)
-		if err := http.ListenAndServe(":"+LoadBalancerPort, lbMux); err != nil {
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Failed to start HTTP server: %v", err)
 		}
 	}()
+
+	// Add a method to stop the server gracefully
+	// lb.StopChan = make(chan struct{})
+	// go func() {
+	// 	<-lb.StopChan
+	// 	log.Println("Shutting down HTTP server...")
+	// 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// 	defer cancel()
+	// 	if err := httpServer.Shutdown(ctx); err != nil {
+	// 		log.Printf("HTTP server shutdown error: %v", err)
+	// 	}
+	// }()
 
 	fmt.Println("Load Balancer started: ", time.Now().String())
 
 	return lb, nil
 }
 
-func SendHelloToServiceRegistry()
+func SendHelloToServiceRegistry(ServiceRegistryHTTPPort string) {
+
+	data, err := json.Marshal("Hello from new Load Balancer")
+	if err != nil {
+		log.Printf("Failed to marshal backend info: %v", err)
+		return
+	}
+
+	response, err := http.Post("http://localhost:10000/load-balancer/hello",
+		"application/json", bytes.NewBuffer(data))
+	if err != nil {
+		log.Printf("Failed to send register message: %v", err)
+		return
+	}
+
+	if response.StatusCode != http.StatusOK {
+		log.Printf("Failed to register backend, status code: %d", response.StatusCode)
+		return
+	}
+}
 
 func main() {
 
@@ -77,14 +121,29 @@ func main() {
 		// Stop existing load balancer if it exists
 		if currentLoadBalancer != nil {
 			currentLoadBalancer.Stop()
-		}
 
+			if httpServer != nil {
+				sigChan := make(chan os.Signal, 1)
+				signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+				<-sigChan
+
+				log.Println("Shutting down server...")
+
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				if err := httpServer.Shutdown(ctx); err != nil {
+					log.Fatalf("Server shutdown failed: %+v", err)
+				}
+				log.Println("Server stopped gracefully")
+			}
+		}
+		time.Sleep(time.Second * 10)
 		// Load new configuration
 		cfg, err := config.LoadConfig(configPath)
 		if err != nil {
 			return fmt.Errorf("failed to load config: %v", err)
 		}
-
 		// Create new load balancer
 		newLoadBalancer, err := NewLoadBalancer(cfg)
 		if err != nil {
@@ -106,8 +165,10 @@ func main() {
 	}
 
 	// notify service registry about new load balancer
-	// grpc
-	resp, err := grpc.NewClient()
+	// http now, grpc later
+	// resp, err := grpc.NewClient()
+	// ServiceRegistryHTTPPort := os.Getenv("SERVICE_REGISTRY_HTTP_PORT")
+	// SendHelloToServiceRegistry(ServiceRegistryHTTPPort)
 
 	// add config file to watcher
 	if err := watcher.Add(configPath); err != nil {

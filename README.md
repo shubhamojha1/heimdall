@@ -41,7 +41,7 @@
 ```
 
 ## Steps to start:
-1. Start load balancer (also has service registry)
+1. Start load balancer
 2. Start server manager
 3. 
 

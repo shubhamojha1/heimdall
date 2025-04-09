@@ -44,6 +44,7 @@ func NewServiceRegistry() (*ServiceRegistry, error) {
 	srMux.HandleFunc("/register", sr.HandleRegister)
 	srMux.HandleFunc("/heartbeat", sr.HandleHeartbeat)
 	srMux.HandleFunc("/remove", sr.HandleRemove)
+	srMux.HandleFunc("/load-balancer/hello", sr.HandleLoadBalancerHello)
 
 	// grpcServer := grpc.NewServer()
 	// pb.RegisterServiceRegistryServer(grpcServer, sr)
@@ -56,9 +57,9 @@ func NewServiceRegistry() (*ServiceRegistry, error) {
 	}()
 
 	// start gRPC server concurrently
-	go func() {
-		listen, err := net.Listen("tcp", ":{}")
-	}
+	// go func() {
+	// 	listen, err := net.Listen("tcp", ":{}")
+	// }
 	fmt.Println("Service Registry started: ", time.Now().String())
 
 	return sr, nil
@@ -146,6 +147,22 @@ func (sr *ServiceRegistry) HandleHeartbeat(w http.ResponseWriter, r *http.Reques
 	sr.mu.Unlock()
 
 	log.Printf("Received heartbeat from backend: %v", heartbeat)
+	w.WriteHeader(http.StatusOK)
+}
+
+func (sr *ServiceRegistry) HandleLoadBalancerHello(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var message string
+	if err := json.NewDecoder(r.Body).Decode(&message); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("Recieved hello from load balancer: %v", message)
 	w.WriteHeader(http.StatusOK)
 }
 
