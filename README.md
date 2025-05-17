@@ -1,5 +1,5 @@
 # heimdall
-## A Dynamic Load Balancer
+### A Dynamic Load Balancer
 
 ```
 ├── cmd/
